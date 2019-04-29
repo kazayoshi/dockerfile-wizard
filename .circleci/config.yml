@@ -2,8 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      #- image: circleci/ruby:2.5.3-node-browsers
-      - image: circleci/ruby:2.3-node-browsers
+      - image: circleci/ruby:2.5.3-node-browsers
         environment:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres@127.0.0.1:5432/rails-test
@@ -12,7 +11,7 @@ jobs:
           POSTGRES_USER: "postgres"
           POSTGRES_PASSWORD: ""
           POSTGRES_DB: "rails-test"
-      #- image: circleci/redis:4-alpine3.8
+      - image: circleci/redis:4-alpine3.8
       - image: docker.elastic.co/elasticsearch/elasticsearch:6.2.2
         environment:
           - xpack.security.enabled: false
@@ -33,10 +32,10 @@ jobs:
           name: Wait for PG
           command: dockerize -wait tcp://localhost:5432 -timeout 1m
 
-      #- run:
-      #    name: Wait for Redis
-      #    command: |
-      #      dockerize -wait tcp://localhost:6379 -timeout 1m
+      - run:
+          name: Wait for Redis
+          command: |
+            dockerize -wait tcp://localhost:6379 -timeout 1m
       - run:
           name: Wait for ElasticSearch
           command: |
@@ -52,15 +51,9 @@ jobs:
           name: install dependencies
           command: |
             curl -o- -L https://yarnpkg.com/install.sh | bash
-            #yarn global add sass
-            #bundle install --jobs=4 --retry=3 --path vendor/bundle
+            yarn global add sass
+            bundle install --jobs=4 --retry=3 --path vendor/bundle
             yarn
-
-        - run:
-        name: Bundle Install
-        command: |
-            bundle check --path=vendor/bundle || bundle install --path=vendor/bundle
-
       - save_cache:
           paths:
             - ./vendor/bundle
