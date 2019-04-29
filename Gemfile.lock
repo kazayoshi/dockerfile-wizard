@@ -1,0 +1,17 @@
+GIT
+  remote: git://github.com/sporkrb/spork.git
+  revision: 224df492657e617a0c93c0319e78f0eefee5b636
+  branch: master
+  specs:
+    spork (1.0.0rc4)
+
+GEM
+  remote: https://rubygems.org/
+  remote: https://rails-assets.org/
+  specs:
+    actionmailer (4.2.6)
+      actionpack (= 4.2.6)
+      actionview (= 4.2.6)
+      activejob (= 4.2.6)
+      mail (~> 2.5, >= 2.5.4)
+      rails-dom-testing (~> 1.0, >= 1.0.5)
