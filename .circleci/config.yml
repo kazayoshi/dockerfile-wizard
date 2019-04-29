@@ -47,6 +47,9 @@ jobs:
           - v1-dependencies-{{ checksum "Gemfile.lock" }}
           # fallback to using the latest cache if no exact match is found
           - v1-dependencies-
+      - run:
+          name: capybara additional dependencies
+          command: sudo apt-get update; sudo apt-get -y install qt5-default libqt5webkit5-dev gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-x libcurl3-dev postgresql postgresql-contrib libpq-dev
 
       - run:
           name: install dependencies
