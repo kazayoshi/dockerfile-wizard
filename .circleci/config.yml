@@ -1,93 +1,80 @@
-image_config: &image_config
-
-  # make sure to set your Docker Hub username & password in CircleCI,
-  # either as project-specific environment variables
-  # or as resources in your organization's org-global Context
-
-  IMAGE_NAME: ls
-
-  IMAGE_TAG: circleci2.0_4_copyin
-
-  # NOTE: if you're modifying this config.yml file manually
-  # rather than using the included setup script,
-  # make sure you also add the values of your IMAGE_NAME & IMAGE_TAG variables
-  # to the `test_image` job (line 55)
-
-  LINUX_VERSION: UBUNTU_XENIAL
-
-  RUBY_VERSION_NUM: 2.3.0
-
-  # NODE_VERSION_NUM: # pick a version from https://nodejs.org/dist
-
-  # PYTHON_VERSION_NUM: # pick a version from https://python.org/ftp/python
-
-  JAVA: false
-
-  MYSQL_CLIENT: false
-
-  POSTGRES_CLIENT: true
-
-  DOCKERIZE: true
-
-  BROWSERS: true
-
 version: 2
 jobs:
   build:
-    machine: true
-    environment:
-      <<: *image_config
-
-    steps:
-      - checkout
-
-      - run: bash scripts/generate.sh > Dockerfile
-
-      - run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-
-      - run: docker build -t $DOCKER_USERNAME/$IMAGE_NAME:$IMAGE_TAG .
-
-      - run: docker push $DOCKER_USERNAME/$IMAGE_NAME:$IMAGE_TAG && sleep 10
-
-      - store_artifacts:
-          path: Dockerfile
-
-  test_image:
     docker:
-      - image: $DOCKER_USERNAME/ls:circleci2.0_4_copyin
+      #- image: circleci/ruby:2.5.3-node-browsers
+      - image: circleci/ruby:2.3-node-browsers
         environment:
-          <<: *image_config
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres@127.0.0.1:5432/rails-test
+      - image: circleci/postgres:9.6
+        environment:
+          POSTGRES_USER: "postgres"
+          POSTGRES_PASSWORD: ""
+          POSTGRES_DB: "rails-test"
+      #- image: circleci/redis:4-alpine3.8
+      - image: docker.elastic.co/elasticsearch/elasticsearch:6.2.2
+        environment:
+          - xpack.security.enabled: false
+
+    working_directory: ~/repo
 
     steps:
       - checkout
 
       - run:
-          name: start Xvfb for phantomjs test
-          command: Xvfb :99
-          background: true
+          name: Dockerize v0.6.0
+          command: |
+            wget https://github.com/jwilder/dockerize/releases/download/v0.6.0/dockerize-linux-amd64-v0.6.0.tar.gz
+            sudo rm -rf /usr/local/bin/dockerize
+            sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-v0.6.0.tar.gz
+            rm dockerize-linux-amd64-v0.6.0.tar.gz
+      - run:
+          name: Wait for PG
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+
+      #- run:
+      #    name: Wait for Redis
+      #    command: |
+      #      dockerize -wait tcp://localhost:6379 -timeout 1m
+      - run:
+          name: Wait for ElasticSearch
+          command: |
+            dockerize -wait tcp://localhost:9200 -timeout 1m
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "Gemfile.lock" }}-{{ checksum "yarn.lock" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
 
       - run:
-          name: bats tests
+          name: install dependencies
           command: |
-            mkdir -p test_results/bats
-            bats scripts/tests.bats | \
-            perl scripts/tap-to-junit.sh > \
-            test_results/bats/results.xml
+            curl -o- -L https://yarnpkg.com/install.sh | bash
+            #yarn global add sass
+            #bundle install --jobs=4 --retry=3 --path vendor/bundle
+            yarn
 
-      - store_test_results:
-          path: test_results
+        - run:
+        name: Bundle Install
+        command: |
+            bundle check --path=vendor/bundle || bundle install --path=vendor/bundle
 
-      - store_artifacts:
-          path: test_results
+      - save_cache:
+          paths:
+            - ./vendor/bundle
+            - ~/.cache/yarn
+          key: v1-dependencies-{{ checksum "Gemfile.lock" }}-{{ checksum "yarn.lock" }}
 
-workflows:
-  version: 2
-  dockerfile_wizard:
-    jobs:
-      - build:
-          context: org-global
+      # Database setup
+      - run: bundle exec rake db:create
+      - run: bundle exec rake db:schema:load
 
-      - test_image:
-          context: org-global
-          requires:
-            - build
+      - run:
+          name: Rubocop
+          command: bundle exec rubocop
+
+      - run:
+          name: Rails Test
+          command: bundle exec rails test
